@@ -1,16 +1,16 @@
 {
-	"name": "OCLI",
-	"image": "mcr.microsoft.com/devcontainers/typescript-node:4-22-bookworm",
-	"features": {
-		"ghcr.io/stuartleeks/dev-container-features/shell-history:0": {}
-	},
-	"postCreateCommand": "npm ci && bash tests/fixtures/download.sh",
-	"customizations": {
-		"vscode": {
-			"extensions": [
-				"dbaeumer.vscode-eslint",
-				"orta.vscode-jest"
-			]
-		}
-	}
+  "name": "OCLI",
+  "image": "mcr.microsoft.com/devcontainers/typescript-node:4-22-bookworm",
+  "features": {
+    "ghcr.io/stuartleeks/dev-container-features/shell-history:0": {}
+  },
+  "postCreateCommand": "npm ci && bash tests/fixtures/download.sh",
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "dbaeumer.vscode-eslint",
+        "orta.vscode-jest"
+      ]
+    }
+  }
 }
