@@ -5,6 +5,11 @@
 
 set -euo pipefail
 
+if [ "$#" -eq 0 ]; then
+  echo "Usage: exec.sh <command> [args...]" >&2
+  exit 1
+fi
+
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 PROJECT_ROOT="$(git -C "$SCRIPT_DIR" rev-parse --show-toplevel)"
 
@@ -30,8 +35,11 @@ fi
 # Detect remote user from container metadata, default to the convention "node".
 if command -v jq >/dev/null 2>&1; then
   REMOTE_USER="$(docker inspect "$CONTAINER_ID" \
-    | jq -r '.[0].Config.Labels["devcontainer.metadata"] // empty' \
-    | jq -r '[.[] | select(.remoteUser)] | if length > 0 then last.remoteUser else empty end')" || true
+    | jq -r '
+      .[0].Config.Labels["devcontainer.metadata"] // empty
+      | fromjson? // []
+      | [.[] | select(.remoteUser)] | if length > 0 then last.remoteUser else empty end
+    ')" || true
 fi
 
 if [ -z "${REMOTE_USER:-}" ] || [ "$REMOTE_USER" = "null" ]; then
