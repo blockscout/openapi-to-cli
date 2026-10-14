@@ -19,6 +19,16 @@ export interface OpenapiLoaderOptions {
 export class OpenapiLoader {
   private readonly fs: FileSystemForLoader;
 
+  // Hardening limits for remote spec fetching. The loader follows $ref links
+  // across documents, so a malicious or compromised spec could otherwise chain
+  // an unbounded number of large downloads (SSRF amplification / memory
+  // exhaustion on the machine running this CLI).
+  private static readonly MAX_REMOTE_DOCUMENTS = 50;
+  private static readonly MAX_RESPONSE_BYTES = 10 * 1024 * 1024;
+  private static readonly REQUEST_TIMEOUT_MS = 30_000;
+
+  private remoteDocumentCount = 0;
+
   constructor(options?: OpenapiLoaderOptions) {
     this.fs = options?.fs ?? fsModule;
   }
@@ -58,7 +68,25 @@ export class OpenapiLoader {
 
   private async loadFromSource(source: string): Promise<unknown> {
     if (source.startsWith("http://") || source.startsWith("https://")) {
-      const response = await axios.get(source, { responseType: "text" });
+      // Cap the number of remote documents: each fetch runs with the operator's
+      // network identity, so a hostile spec must not be able to fan out into
+      // hundreds of internal/external requests via chained $refs.
+      this.remoteDocumentCount += 1;
+      if (this.remoteDocumentCount > OpenapiLoader.MAX_REMOTE_DOCUMENTS) {
+        throw new Error(
+          `Refusing to fetch remote OpenAPI document #${this.remoteDocumentCount} ` +
+          `(${source}): remote document budget of ${OpenapiLoader.MAX_REMOTE_DOCUMENTS} exceeded. ` +
+          `The spec may contain a $ref cycle or a ref chain to untrusted hosts.`
+        );
+      }
+      const response = await axios.get(source, {
+        responseType: "text",
+        // Fail fast instead of hanging the CLI on an unresponsive host ...
+        timeout: OpenapiLoader.REQUEST_TIMEOUT_MS,
+        // ... and never buffer more than the cap into memory.
+        maxContentLength: OpenapiLoader.MAX_RESPONSE_BYTES,
+        maxBodyLength: OpenapiLoader.MAX_RESPONSE_BYTES,
+      });
       return this.parseSpec(response.data, source);
     }
 
